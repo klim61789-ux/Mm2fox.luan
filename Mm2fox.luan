@@ -1,0 +1,636 @@
+
+        -- ============ MM2 Fox Script (Part 1/2) ============
+if game.PlaceId ~= 142823291 then return end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualUser = game:GetService("VirtualUser")
+local LocalPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local COLORS = {
+    Murderer = Color3.fromRGB(255, 0, 0),
+    Sheriff  = Color3.fromRGB(0, 100, 255),
+    Innocent = Color3.fromRGB(0, 255, 0),
+    Menu     = Color3.fromRGB(120, 120, 120),
+}
+local ACCENT      = Color3.fromRGB(255, 130, 0)
+local BG_MAIN     = Color3.fromRGB(26, 26, 26)
+local BG_HEADER   = Color3.fromRGB(37, 37, 37)
+local BG_STATUS   = Color3.fromRGB(37, 37, 37)
+local BG_OFF      = Color3.fromRGB(60, 60, 60)
+local STROKE      = Color3.fromRGB(51, 51, 51)
+local TXT_WHITE   = Color3.fromRGB(240, 240, 240)
+local TXT_DIM     = Color3.fromRGB(170, 170, 170)
+local DOT_ON      = Color3.fromRGB(0, 220, 0)
+local DOT_OFF     = Color3.fromRGB(90, 90, 90)
+
+local espEnabled = true
+local autoShootEnabled = false
+local invisibleEnabled = false
+
+-- UI
+local gui = Instance.new("ScreenGui")
+gui.Name = "FoxMM2"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = game:GetService("CoreGui")
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 200, 0, 195)
+main.Position = UDim2.new(0, 20, 0, 100)
+main.BackgroundColor3 = BG_MAIN
+main.BorderSizePixel = 0
+main.Active = true
+main.Parent = gui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 8)
+mainCorner.Parent = main
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = STROKE
+mainStroke.Thickness = 1
+mainStroke.Parent = main
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 35)
+header.BackgroundColor3 = BG_HEADER
+header.BorderSizePixel = 0
+header.Parent = main
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 8)
+headerCorner.Parent = header
+
+local headerFix = Instance.new("Frame")
+headerFix.Size = UDim2.new(1, 0, 0, 8)
+headerFix.Position = UDim2.new(0, 0, 1, -8)
+headerFix.BackgroundColor3 = BG_HEADER
+headerFix.BorderSizePixel = 0
+headerFix.Parent = header
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -80, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "FOX MM2"
+titleLabel.TextColor3 = ACCENT
+titleLabel.TextSize = 15
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = header
+
+local statusDot = Instance.new("Frame")
+statusDot.Size = UDim2.new(0, 8, 0, 8)
+statusDot.Position = UDim2.new(1, -68, 0, 13)
+statusDot.BackgroundColor3 = DOT_ON
+statusDot.BorderSizePixel = 0
+statusDot.Parent = header
+
+local dotCorner = Instance.new("UICorner")
+dotCorner.CornerRadius = UDim.new(1, 0)
+dotCorner.Parent = statusDot
+
+local collapseIcon = Instance.new("TextButton")
+collapseIcon.Size = UDim2.new(0, 35, 1, 0)
+collapseIcon.Position = UDim2.new(1, -35, 0, 0)
+collapseIcon.BackgroundTransparency = 1
+collapseIcon.Text = "▼"
+collapseIcon.TextColor3 = TXT_DIM
+collapseIcon.TextSize = 14
+collapseIcon.Font = Enum.Font.GothamBold
+collapseIcon.Parent = header
+
+local espButton = Instance.new("TextButton")
+espButton.Size = UDim2.new(1, -20, 0, 44)
+espButton.Position = UDim2.new(0, 10, 0, 45)
+espButton.BackgroundColor3 = ACCENT
+espButton.BorderSizePixel = 0
+espButton.Text = "ESP: ON"
+espButton.TextColor3 = TXT_WHITE
+espButton.TextSize = 13
+espButton.Font = Enum.Font.GothamBold
+espButton.Parent = main
+
+local espCorner = Instance.new("UICorner")
+espCorner.CornerRadius = UDim.new(0, 6)
+espCorner.Parent = espButton
+
+local invisibleBtn = Instance.new("TextButton")
+invisibleBtn.Size = UDim2.new(1, -20, 0, 44)
+invisibleBtn.Position = UDim2.new(0, 10, 0, 95)
+invisibleBtn.BackgroundColor3 = BG_OFF
+invisibleBtn.BorderSizePixel = 0
+invisibleBtn.Text = "INVISIBLE: OFF"
+invisibleBtn.TextColor3 = TXT_WHITE
+invisibleBtn.TextSize = 13
+invisibleBtn.Font = Enum.Font.GothamBold
+invisibleBtn.Parent = main
+
+local invisibleCorner = Instance.new("UICorner")
+invisibleCorner.CornerRadius = UDim.new(0, 6)
+invisibleCorner.Parent = invisibleBtn
+
+local statusFrame = Instance.new("Frame")
+statusFrame.Size = UDim2.new(1, -20, 0, 50)
+statusFrame.Position = UDim2.new(0, 10, 1, -60)
+statusFrame.BackgroundColor3 = BG_STATUS
+statusFrame.BorderSizePixel = 0
+statusFrame.Parent = main
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 6)
+statusCorner.Parent = statusFrame
+
+local roleLabel = Instance.new("TextLabel")
+roleLabel.Size = UDim2.new(1, -12, 0, 14)
+roleLabel.Position = UDim2.new(0, 8, 0, 4)
+roleLabel.BackgroundTransparency = 1
+roleLabel.Text = "Role: —"
+roleLabel.TextColor3 = TXT_WHITE
+roleLabel.TextSize = 11
+roleLabel.Font = Enum.Font.Gotham
+roleLabel.TextXAlignment = Enum.TextXAlignment.Left
+roleLabel.Parent = statusFrame
+
+local murdererLabel = Instance.new("TextLabel")
+murdererLabel.Size = UDim2.new(1, -12, 0, 14)
+murdererLabel.Position = UDim2.new(0, 8, 0, 18)
+murdererLabel.BackgroundTransparency = 1
+murdererLabel.Text = "Murderers: 0"
+murdererLabel.TextColor3 = TXT_DIM
+murdererLabel.TextSize = 11
+murdererLabel.Font = Enum.Font.Gotham
+murdererLabel.TextXAlignment = Enum.TextXAlignment.Left
+murdererLabel.Parent = statusFrame
+
+local aliveLabel = Instance.new("TextLabel")
+aliveLabel.Size = UDim2.new(1, -12, 0, 14)
+aliveLabel.Position = UDim2.new(0, 8, 0, 32)
+aliveLabel.BackgroundTransparency = 1
+aliveLabel.Text = "Alive: 0"
+aliveLabel.TextColor3 = TXT_DIM
+aliveLabel.TextSize = 11
+aliveLabel.Font = Enum.Font.Gotham
+aliveLabel.TextXAlignment = Enum.TextXAlignment.Left
+aliveLabel.Parent = statusFrame
+
+local shootBtn = Instance.new("TextButton")
+shootBtn.Size = UDim2.new(0, 110, 0, 45)
+shootBtn.Position = UDim2.new(1, -120, 1, -60)
+shootBtn.BackgroundColor3 = BG_OFF
+shootBtn.BorderSizePixel = 0
+shootBtn.Text = "AUTO SHOOT\nOFF"
+shootBtn.TextColor3 = TXT_WHITE
+shootBtn.TextSize = 12
+shootBtn.Font = Enum.Font.GothamBold
+shootBtn.Visible = false
+shootBtn.Parent = gui
+
+local shootCorner = Instance.new("UICorner")
+shootCorner.CornerRadius = UDim.new(0, 8)
+shootCorner.Parent = shootBtn
+
+local tpBtn = Instance.new("TextButton")
+tpBtn.Size = UDim2.new(0, 110, 0, 45)
+tpBtn.Position = UDim2.new(1, -120, 1, -115)
+tpBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 180)
+tpBtn.BorderSizePixel = 0
+tpBtn.Text = "TP к GUN"
+tpBtn.TextColor3 = TXT_WHITE
+tpBtn.TextSize = 12
+tpBtn.Font = Enum.Font.GothamBold
+tpBtn.Visible = false
+tpBtn.Parent = gui
+
+local tpCorner = Instance.new("UICorner")
+tpCorner.CornerRadius = UDim.new(0, 8)
+tpCorner.Parent = tpBtn
+
+-- DRAG
+local dragging, dragStart, startPos
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+    end
+end)
+header.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+header.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+local collapsed = false
+collapseIcon.MouseButton1Click:Connect(function()
+    collapsed = not collapsed
+    local targetSize = collapsed and UDim2.new(0, 200, 0, 35) or UDim2.new(0, 200, 0, 195)
+    TweenService:Create(main, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = targetSize}):Play()
+    collapseIcon.Text = collapsed and "▲" or "▼"
+    espButton.Visible = not collapsed
+    invisibleBtn.Visible = not collapsed
+    statusFrame.Visible = not collapsed
+end)
+
+espButton.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    espButton.Text = espEnabled and "ESP: ON" or "ESP: OFF"
+    espButton.BackgroundColor3 = espEnabled and ACCENT or BG_OFF
+    statusDot.BackgroundColor3 = espEnabled and DOT_ON or DOT_OFF
+    if not espEnabled then
+        for _, p in ipairs(Players:GetPlayers()) do removeESP(p) end
+    else
+        for _, p in ipairs(Players:GetPlayers()) do createESP(p) end
+    end
+end)
+
+shootBtn.MouseButton1Click:Connect(function()
+    autoShootEnabled = not autoShootEnabled
+    shootBtn.Text = autoShootEnabled and "AUTO SHOOT\nON" or "AUTO SHOOT\nOFF"
+    shootBtn.BackgroundColor3 = autoShootEnabled and ACCENT or BG_OFF
+end) -- ============ MM2 Fox Script (Part 2/2) ============
+local function hasItem(container, name)
+    if not container then return false end
+    for _, item in ipairs(container:GetChildren()) do
+        if item.Name == name then return true end
+    end
+    return false
+end
+
+local function getPlayerRole(player)
+    local char = player.Character
+    if not char then return "Menu" end
+    local backpack = player:FindFirstChild("Backpack")
+    if hasItem(backpack, "Knife") or hasItem(char, "Knife") then
+        return "Murderer"
+    end
+    if hasItem(backpack, "Gun") or hasItem(char, "Gun") then
+        return "Sheriff"
+    end
+    return "Innocent"
+end
+
+local function getESPColor(player)
+    local char = player.Character
+    if not char then return COLORS.Menu end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return COLORS.Menu end
+    if humanoid.Health <= 0 then return COLORS.Menu end
+    local role = getPlayerRole(player)
+    return COLORS[role] or COLORS.Menu
+end
+
+local function isLocalSheriff()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    return hasItem(backpack, "Gun") or hasItem(char, "Gun")
+end
+
+local function isSheriffAlive()
+    for _, p in ipairs(Players:GetPlayers()) do
+        local char = p.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and getPlayerRole(p) == "Sheriff" then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function applyColor(player)
+    if not espEnabled then return end
+    local char = player.Character
+    if not char then return end
+    local hl = char:FindFirstChild("FoxESP")
+    if not hl then return end
+    local color = getESPColor(player)
+    hl.FillColor = color
+    hl.OutlineColor = color
+end
+
+function createESP(player)
+    if player == LocalPlayer then return end
+    if not espEnabled then return end
+    local char = player.Character
+    if not char then return end
+    if char:FindFirstChild("FoxESP") then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "FoxESP"
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.FillTransparency = 0.5
+    hl.OutlineTransparency = 0
+    local color = getESPColor(player)
+    hl.FillColor = color
+    hl.OutlineColor = color
+    hl.Parent = char
+end
+
+function removeESP(player)
+    local char = player.Character
+    if not char then return end
+    local hl = char:FindFirstChild("FoxESP")
+    if hl then hl:Destroy() end
+end
+
+local function hookHumanoid(player, char)
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    humanoid.Died:Connect(function() applyColor(player) end)
+    humanoid.HealthChanged:Connect(function(h)
+        if h <= 0 then applyColor(player) end
+    end)
+end
+
+local function onCharacter(player)
+    removeESP(player)
+    task.wait(0.5)
+    createESP(player)
+    local char = player.Character
+    if char then
+        hookHumanoid(player, char)
+        char.ChildAdded:Connect(function() task.wait(0.1); applyColor(player) end)
+        char.ChildRemoved:Connect(function() task.wait(0.1); applyColor(player) end)
+    end
+end
+
+local function onPlayer(player)
+    player.CharacterAdded:Connect(function() onCharacter(player) end)
+    if player.Character then onCharacter(player) end
+end
+
+local function watchBackpack(player)
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then return end
+    backpack.ChildAdded:Connect(function() task.wait(0.1); applyColor(player) end)
+    backpack.ChildRemoved:Connect(function() task.wait(0.1); applyColor(player) end)
+end
+
+local function countMurderers()
+    local c = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            local char = p.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 and getPlayerRole(p) == "Murderer" then
+                    c = c + 1
+                end
+            end
+        end
+    end
+    return c
+end
+
+local function countAlive()
+    local c = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        local char = p.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then c = c + 1 end
+        end
+    end
+    return c
+end
+
+local invisSaved = {}
+local function setInvisible(state)
+    local char = LocalPlayer.Character
+    if not char then return end
+    if state then
+        invisSaved = {}
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                invisSaved[obj] = obj.Transparency
+                obj.Transparency = 1
+            elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                invisSaved[obj] = obj.Transparency
+                obj.Transparency = 1
+            end
+        end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.NameDisplayDistance = 0
+            hum.HealthDisplayDistance = 0
+        end
+    else
+        for obj, t in pairs(invisSaved) do
+            if obj and obj.Parent then
+                pcall(function() obj.Transparency = t end)
+            end
+        end
+        invisSaved = {}
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.NameDisplayDistance = 100
+            hum.HealthDisplayDistance = 100
+        end
+    end
+end
+
+invisibleBtn.MouseButton1Click:Connect(function()
+    invisibleEnabled = not invisibleEnabled
+    invisibleBtn.Text = invisibleEnabled and "INVISIBLE: ON" or "INVISIBLE: OFF"
+    invisibleBtn.BackgroundColor3 = invisibleEnabled and ACCENT or BG_OFF
+    setInvisible(invisibleEnabled)
+end)
+
+local function isInViewport(pos)
+    local sp, onScreen = camera:WorldToViewportPoint(pos)
+    local vp = camera.ViewportSize
+    if not onScreen then return false, nil end
+    if sp.Z <= 0 then return false, nil end
+    if sp.X < 0 or sp.X > vp.X then return false, nil end
+    if sp.Y < 0 or sp.Y > vp.Y then return false, nil end
+    return true, sp
+end
+
+local function getVisibleMurderers()
+    local result = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and getPlayerRole(p) == "Murderer" then
+                local head = p.Character:FindFirstChild("Head")
+                if head then
+                    local visible, sp = isInViewport(head.Position)
+                    if visible then
+                        local dist = (camera.CFrame.Position - head.Position).Magnitude
+                        table.insert(result, {player = p, head = head, dist = dist, screen = sp})
+                    end
+                end
+            end
+        end
+    end
+    table.sort(result, function(a, b) return a.dist < b.dist end)
+    return result
+end
+
+local function getLocalGun()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local gun = char:FindFirstChild("Gun")
+    if gun and gun:IsA("Tool") then return gun end
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        gun = backpack:FindFirstChild("Gun")
+        if gun and gun:IsA("Tool") then return gun end
+    end
+    return nil
+end
+
+local function fireGun(gun, screenPos)
+    if not gun then return end
+    local x, y
+    if screenPos then
+        x = math.floor(screenPos.X)
+        y = math.floor(screenPos.Y)
+    else
+        local vp = camera.ViewportSize
+        x = math.floor(vp.X / 2)
+        y = math.floor(vp.Y / 2)
+    end
+    pcall(function() gun:Activate() end)
+    task.wait(0.03)
+    pcall(function()
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 0)
+        task.wait(0.03)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 0)
+    end)
+    task.wait(0.03)
+    pcall(function()
+        for _, child in ipairs(gun:GetDescendants()) do
+            if child:IsA("RemoteEvent") then
+                child:FireServer()
+            elseif child:IsA("RemoteFunction") then
+                child:InvokeServer()
+            end
+        end
+    end)
+    pcall(function()
+        VirtualUser:ClickButton1(Vector2.new(x, y))
+    end)
+end
+
+local function findFreeGun()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Tool") and obj.Name == "Gun" then
+            local parent = obj.Parent
+            local isHeld = false
+            for _, p in ipairs(Players:GetPlayers()) do
+                if parent == p.Character or parent == p:FindFirstChild("Backpack") then
+                    isHeld = true
+                    break
+                end
+            end
+            if not isHeld then return obj end
+        end
+    end
+    return nil
+end
+
+tpBtn.MouseButton1Click:Connect(function()
+    if not LocalPlayer.Character then return end
+    local gun = findFreeGun()
+    if gun then
+        pcall(function()
+            LocalPlayer.Character:PivotTo(CFrame.new(gun.Position + Vector3.new(0, 3, 0)))
+        end)
+        tpBtn.Visible = false
+    end
+end)
+
+for _, p in ipairs(Players:GetPlayers()) do onPlayer(p) end
+Players.PlayerAdded:Connect(onPlayer)
+Players.PlayerRemoving:Connect(removeESP)
+for _, p in ipairs(Players:GetPlayers()) do watchBackpack(p) end
+Players.PlayerAdded:Connect(function(p)
+    p.ChildAdded:Connect(function(child)
+        if child.Name == "Backpack" then watchBackpack(p) end
+    end)
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if invisibleEnabled then
+        task.wait(0.5)
+        setInvisible(true)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if espEnabled then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    if not p.Character:FindFirstChild("FoxESP") then
+                        createESP(p)
+                    else
+                        applyColor(p)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        local sheriff = isLocalSheriff()
+        shootBtn.Visible = sheriff
+        if not sheriff and autoShootEnabled then
+            autoShootEnabled = false
+            shootBtn.Text = "AUTO SHOOT\nOFF"
+            shootBtn.BackgroundColor3 = BG_OFF
+        end
+        roleLabel.Text = "Role: " .. getPlayerRole(LocalPlayer)
+        murdererLabel.Text = "Murderers: " .. countMurderers()
+        aliveLabel.Text = "Alive: " .. countAlive()
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.15) do
+        if not autoShootEnabled then continue end
+        if not isLocalSheriff() then continue end
+        local targets = getVisibleMurderers()
+        if #targets == 0 then continue end
+        local target = targets[1]
+        if not LocalPlayer.Character then continue end
+        local _, sp = isInViewport(target.head.Position)
+        local gun = getLocalGun()
+        if gun then fireGun(gun, sp) end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        local sheriffAlive = isSheriffAlive()
+        local freeGun = findFreeGun()
+        if (not sheriffAlive) and freeGun then
+            tpBtn.Visible = true
+        else
+            tpBtn.Visible = false
+        end
+    end
+end)
+
+print("[FOX MM2] Script loaded OK")
