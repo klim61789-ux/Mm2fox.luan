@@ -1,0 +1,877 @@
+--[[
+    ETFB Fox Framework v1.2
+    Escape Tsunami For Brainrots
+    + Anti-Death (Event)
+    + Smart Teleport (Safe Zone)
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LP = Players.LocalPlayer
+
+-- ========== SAFE PARENT ==========
+local function getParent()
+    if type(gethui) == "function" then
+        local ok, hui = pcall(gethui)
+        if ok and hui and typeof(hui) == "Instance" then return hui end
+    end
+    if CoreGui then return CoreGui end
+    return LP:WaitForChild("PlayerGui")
+end
+local GUI_PARENT = getParent()
+
+pcall(function()
+    local old = GUI_PARENT:FindFirstChild("ETFB_FoxUI")
+    if old then old:Destroy() end
+end)
+
+-- ========== REMOTES ==========
+local RF = ReplicatedStorage:WaitForChild("RemoteFunctions", 10)
+local RE = ReplicatedStorage:WaitForChild("RemoteEvents", 10)
+
+local Remotes = {}
+if RF then
+    Remotes.SellAll         = RF:FindFirstChild("SellAll")
+    Remotes.SellTool        = RF:FindFirstChild("SellTool")
+    Remotes.GetSellAmount   = RF:FindFirstChild("GetSellAmount")
+    Remotes.GetCollected    = RF:FindFirstChild("GetCollectedBrainrots")
+    Remotes.TakeFreeEpic    = RF:FindFirstChild("TakeFreeEpic")
+    Remotes.UpgradeBrainrot = RF:FindFirstChild("UpgradeBrainrot")
+    Remotes.UpgradeBase     = RF:FindFirstChild("UpgradeBase")
+    Remotes.UpgradeSpeed    = RF:FindFirstChild("UpgradeSpeed")
+    Remotes.UpgradeCarry    = RF:FindFirstChild("UpgradeCarry")
+    Remotes.Rebirth         = RF:FindFirstChild("Rebirth")
+    Remotes.BuyGear         = RF:FindFirstChild("BuyGear")
+end
+if RE then
+    Remotes.CollectMoney    = RE:FindFirstChild("CollectMoney")
+    Remotes.DropBrainrot    = RE:FindFirstChild("DropBrainrot")
+    Remotes.EntityHit       = RE:FindFirstChild("EntityHit")
+    Remotes.SlapPlayer      = RE:FindFirstChild("SlapPlayer")
+end
+
+-- ========== THEME ==========
+local THEME = {
+    BG        = Color3.fromRGB(12, 12, 16),
+    PANEL     = Color3.fromRGB(20, 20, 26),
+    ACCENT    = Color3.fromRGB(60, 180, 240),
+    ACCENT2   = Color3.fromRGB(90, 220, 255),
+    TEXT      = Color3.fromRGB(235, 235, 240),
+    SUBTEXT   = Color3.fromRGB(150, 150, 160),
+    STROKE    = Color3.fromRGB(45, 45, 55),
+    BRAINROT  = Color3.fromRGB(255, 180, 60),
+}
+
+-- ========== ROOT GUI ==========
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ETFB_FoxUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder = 999
+ScreenGui.Parent = GUI_PARENT
+
+-- ========== УТИЛИТЫ ==========
+local function callRF(rf, ...)
+    if not rf then return nil end
+    local args = {...}
+    local ok, res = pcall(function()
+        return rf:InvokeServer(table.unpack(args))
+    end)
+    if ok then return res end
+    return nil
+end
+
+local function fireRE(re, ...)
+    if not re then return false end
+    local args = {...}
+    local ok = pcall(function()
+        re:FireServer(table.unpack(args))
+    end)
+    return ok
+end
+
+-- ========== ESP ==========
+local ESP_State = { Enabled = false, Objects = {} }
+
+local function clearESP(obj)
+    local data = ESP_State.Objects[obj]
+    if data then
+        pcall(function() if data.Highlight then data.Highlight:Destroy() end end)
+        pcall(function() if data.Billboard then data.Billboard:Destroy() end end)
+        ESP_State.Objects[obj] = nil
+    end
+end
+
+local function clearAllESP()
+    local keys = {}
+    for k, _ in pairs(ESP_State.Objects) do table.insert(keys, k) end
+    for _, k in ipairs(keys) do clearESP(k) end
+    ESP_State.Objects = {}
+end
+
+local function isBrainrot(obj)
+    if not obj or not obj:IsA("BasePart") then return false end
+    if obj:GetAttribute("BrainrotId") then return true end
+    if obj.Name:lower():find("brainrot") then return true end
+    return false
+end
+
+local function applyESP(obj)
+    if not isBrainrot(obj) then return end
+    clearESP(obj)
+
+    local hl = Instance.new("Highlight")
+    hl.Name = "FoxESP_HL"
+    hl.Adornee = obj
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.FillColor = THEME.BRAINROT
+    hl.FillTransparency = 0.5
+    hl.OutlineColor = THEME.BRAINROT
+    hl.OutlineTransparency = 0
+    hl.Parent = obj
+
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "FoxESP_BB"
+    bb.Adornee = obj
+    bb.Size = UDim2.new(0, 140, 0, 30)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.Parent = obj
+
+    local txt = Instance.new("TextLabel")
+    txt.Size = UDim2.fromScale(1, 1)
+    txt.BackgroundTransparency = 1
+    txt.TextColor3 = THEME.BRAINROT
+    txt.Font = Enum.Font.GothamBold
+    txt.TextSize = 14
+    txt.TextStrokeTransparency = 0.5
+    txt.Text = obj.Name
+    txt.Parent = bb
+
+    ESP_State.Objects[obj] = {Highlight = hl, Billboard = bb}
+end
+
+local function refreshAllESP()
+    if not ESP_State.Enabled then return end
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if isBrainrot(obj) then applyESP(obj) end
+    end
+end
+
+local function setESP(state)
+    ESP_State.Enabled = state
+    if state then refreshAllESP() else clearAllESP() end
+end
+
+-- ========== AUTO-COLLECT ==========
+local Collect_State = { Enabled = false, Range = 30 }
+
+local function findNearestBrainrot()
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    local best, bestDist = nil, Collect_State.Range
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if isBrainrot(obj) then
+            local d = (obj.Position - hrp.Position).Magnitude
+            if d < bestDist then bestDist = d; best = obj end
+        end
+    end
+    return best
+end
+
+local function doCollect()
+    local obj = findNearestBrainrot()
+    if not obj then return end
+    fireRE(Remotes.CollectMoney)
+end
+
+-- ========== AUTO-UPGRADE ==========
+local Upgrade_State = {
+    Base = false, Speed = false, Carry = false, Brainrot = false,
+    Interval = 2,
+}
+
+local function doUpgrades()
+    if Upgrade_State.Base     then callRF(Remotes.UpgradeBase)     end
+    if Upgrade_State.Speed    then callRF(Remotes.UpgradeSpeed)    end
+    if Upgrade_State.Carry    then callRF(Remotes.UpgradeCarry)    end
+    if Upgrade_State.Brainrot then callRF(Remotes.UpgradeBrainrot) end
+end
+
+-- ========== AUTO-REBIRTH ==========
+local Rebirth_State = { Enabled = false, Interval = 5 }
+
+-- ========== AUTO-SELL ==========
+local Sell_State = { Enabled = false, Interval = 3 }
+
+-- ========== EVENT / ARENA CHECKS ==========
+local function isInArena()
+    local arenaParts = {"TsunamiArena", "Arena", "ArcadeZone"}
+    for _, name in ipairs(arenaParts) do
+        local obj = Workspace:FindFirstChild(name, true)
+        if obj then
+            local char = LP.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp and obj:IsA("BasePart") then
+                local d = (hrp.Position - obj.Position).Magnitude
+                if d < 200 then return true end
+            end
+        end
+    end
+    if LP:GetAttribute("InArena") or LP:GetAttribute("InTsunami") then return true end
+    return false
+end
+
+local function isArcadeEventActive()
+    local eventNames = {"ArcadeEvent", "TsunamiEvent", "EventZone", "TsunamiArena"}
+    for _, name in ipairs(eventNames) do
+        local ev = Workspace:FindFirstChild(name, true)
+        if ev then
+            if ev:GetAttribute("Active") == true then return true end
+            if ev:GetAttribute("IsActive") == true then return true end
+        end
+    end
+    return false
+end
+
+local function isAlive()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
+end
+
+-- ========== TELEPORT TO SAFE ZONE (SAFE) ==========
+local function teleportToSafeZone()
+    if not isAlive() then
+        setStatus("teleport skipped: dead")
+        return false
+    end
+    if isInArena() or isArcadeEventActive() then
+        setStatus("teleport skipped: event active")
+        return false
+    end
+
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+
+    local names = {"SafeZone", "SafeArea", "SpawnZone", "BasePlot"}
+    for _, n in ipairs(names) do
+        local obj = Workspace:FindFirstChild(n, true)
+        if obj and obj:IsA("BasePart") then
+            local inArena = false
+            for _, arenaName in ipairs({"TsunamiArena", "ArcadeZone"}) do
+                local arena = Workspace:FindFirstChild(arenaName, true)
+                if arena and arena:IsA("BasePart") then
+                    if (obj.Position - arena.Position).Magnitude < 150 then
+                        inArena = true
+                        break
+                    end
+                end
+            end
+            if not inArena then
+                hrp.CFrame = obj.CFrame + Vector3.new(0, 5, 0)
+                return true
+            end
+        end
+    end
+
+    local spawn = Workspace:FindFirstChildOfClass("SpawnLocation")
+    if spawn then
+        hrp.CFrame = spawn.CFrame + Vector3.new(0, 5, 0)
+        return true
+    end
+    return false
+end
+
+-- ========== ANTI-DEATH ==========
+local AntiDeath_State = { Enabled = false, Conn = nil }
+
+local function stopAntiDeath()
+    AntiDeath_State.Enabled = false
+    if AntiDeath_State.Conn then
+        pcall(function() AntiDeath_State.Conn:Disconnect() end)
+        AntiDeath_State.Conn = nil
+    end
+    setStatus("anti-death: OFF")
+end
+
+local function startAntiDeath()
+    stopAntiDeath()
+    AntiDeath_State.Enabled = true
+
+    local function hookHumanoid()
+        local char = LP.Character
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+
+        if AntiDeath_State.Conn then
+            pcall(function() AntiDeath_State.Conn:Disconnect() end)
+        end
+
+        AntiDeath_State.Conn = hum.HealthChanged:Connect(function(health)
+            if not AntiDeath_State.Enabled then return end
+            if health <= 0 then
+                if isInArena() or isArcadeEventActive() then
+                    pcall(function()
+                        hum.Health = hum.MaxHealth
+                    end)
+                end
+            end
+        end)
+    end
+
+    hookHumanoid()
+    LP.CharacterAdded:Connect(function()
+        task.wait(1)
+        if AntiDeath_State.Enabled then hookHumanoid() end
+    end)
+
+    setStatus("anti-death: ON")
+end
+
+local function setAntiDeath(state)
+    if state then startAntiDeath() else stopAntiDeath() end
+end
+
+-- ========== LOOPS ==========
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if Collect_State.Enabled then doCollect() end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(Upgrade_State.Interval)
+        doUpgrades()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(Rebirth_State.Interval)
+        if Rebirth_State.Enabled then callRF(Remotes.Rebirth) end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(Sell_State.Interval)
+        if Sell_State.Enabled then callRF(Remotes.SellAll) end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if ESP_State.Enabled then refreshAllESP() end
+    end
+end)
+
+-- ========== МЕНЮ ==========
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 470, 0, 310)
+Main.Position = UDim2.fromScale(0.5, 0.5)
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.BackgroundColor3 = THEME.BG
+Main.BorderSizePixel = 0
+Main.Visible = false
+Main.Active = true
+Main.ZIndex = 50
+Main.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = Main
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = THEME.STROKE
+MainStroke.Thickness = 1
+MainStroke.Parent = Main
+
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 36)
+TopBar.BackgroundColor3 = THEME.PANEL
+TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 51
+TopBar.Parent = Main
+
+local TopBarCorner = Instance.new("UICorner")
+TopBarCorner.CornerRadius = UDim.new(0, 10)
+TopBarCorner.Parent = TopBar
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -70, 1, 0)
+Title.Position = UDim2.new(0, 24, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "ETFB // FOX"
+Title.TextColor3 = THEME.TEXT
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 15
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 52
+Title.Parent = TopBar
+
+local HideBtn = Instance.new("TextButton")
+HideBtn.Size = UDim2.new(0, 28, 0, 28)
+HideBtn.Position = UDim2.new(1, -34, 0, 4)
+HideBtn.BackgroundColor3 = THEME.PANEL
+HideBtn.BorderSizePixel = 0
+HideBtn.Text = "−"
+HideBtn.TextColor3 = THEME.SUBTEXT
+HideBtn.Font = Enum.Font.GothamBold
+HideBtn.TextSize = 18
+HideBtn.ZIndex = 53
+HideBtn.Parent = TopBar
+
+local HideCorner = Instance.new("UICorner")
+HideCorner.CornerRadius = UDim.new(0, 6)
+HideCorner.Parent = HideBtn
+
+HideBtn.MouseButton1Click:Connect(function() Main.Visible = false end)
+
+do
+    local dragging, dragStart, startPos
+    TopBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; dragStart = input.Position; startPos = Main.Position
+        end
+    end)
+    TopBar.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            local delta = input.Position - dragStart
+            Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 105, 1, -46)
+Sidebar.Position = UDim2.new(0, 6, 0, 40)
+Sidebar.BackgroundColor3 = THEME.PANEL
+Sidebar.BorderSizePixel = 0
+Sidebar.ZIndex = 51
+Sidebar.Parent = Main
+
+local SidebarCorner = Instance.new("UICorner")
+SidebarCorner.CornerRadius = UDim.new(0, 8)
+SidebarCorner.Parent = Sidebar
+
+local SidebarPad = Instance.new("UIPadding")
+SidebarPad.PaddingTop = UDim.new(0, 8)
+SidebarPad.PaddingBottom = UDim.new(0, 8)
+SidebarPad.PaddingLeft = UDim.new(0, 6)
+SidebarPad.PaddingRight = UDim.new(0, 6)
+SidebarPad.Parent = Sidebar
+
+local SidebarList = Instance.new("UIListLayout")
+SidebarList.Padding = UDim.new(0, 6)
+SidebarList.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarList.Parent = Sidebar
+
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -121, 1, -46)
+Content.Position = UDim2.new(0, 115, 0, 40)
+Content.BackgroundColor3 = THEME.PANEL
+Content.BorderSizePixel = 0
+Content.ZIndex = 51
+Content.Parent = Main
+
+local ContentCorner = Instance.new("UICorner")
+ContentCorner.CornerRadius = UDim.new(0, 8)
+ContentCorner.Parent = Content
+
+local ContentPad = Instance.new("UIPadding")
+ContentPad.PaddingTop = UDim.new(0, 8)
+ContentPad.PaddingBottom = UDim.new(0, 8)
+ContentPad.PaddingLeft = UDim.new(0, 8)
+ContentPad.PaddingRight = UDim.new(0, 8)
+ContentPad.Parent = Content
+
+local StatusBar = Instance.new("TextLabel")
+StatusBar.Size = UDim2.new(1, -12, 0, 18)
+StatusBar.Position = UDim2.new(0, 6, 1, -22)
+StatusBar.BackgroundTransparency = 1
+StatusBar.Text = "  ready."
+StatusBar.TextColor3 = THEME.SUBTEXT
+StatusBar.Font = Enum.Font.Code
+StatusBar.TextSize = 11
+StatusBar.TextXAlignment = Enum.TextXAlignment.Left
+StatusBar.ZIndex = 52
+StatusBar.Parent = Main
+
+function setStatus(txt)
+    pcall(function() StatusBar.Text = "  " .. tostring(txt) end)
+end
+
+local Tabs = {}
+local ActiveTab = nil
+
+local function switchTab(name)
+    for _, page in pairs(Tabs) do
+        if page.Frame then page.Frame.Visible = false end
+    end
+    if Tabs[name] and Tabs[name].Frame then
+        Tabs[name].Frame.Visible = true
+        ActiveTab = name
+        setStatus("tab: " .. name)
+    end
+end
+
+local function createTab(name, icon)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 0, 32)
+    Btn.BackgroundColor3 = THEME.BG
+    Btn.BackgroundTransparency = 1
+    Btn.BorderSizePixel = 0
+    Btn.Text = "  " .. (icon or "") .. "  " .. name
+    Btn.TextColor3 = THEME.SUBTEXT
+    Btn.Font = Enum.Font.GothamSemibold
+    Btn.TextSize = 12
+    Btn.TextXAlignment = Enum.TextXAlignment.Left
+    Btn.ZIndex = 52
+    Btn.Parent = Sidebar
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = Btn
+
+    local Page = Instance.new("ScrollingFrame")
+    Page.Size = UDim2.fromScale(1, 1)
+    Page.BackgroundTransparency = 1
+    Page.BorderSizePixel = 0
+    Page.ScrollBarThickness = 3
+    Page.ScrollBarImageColor3 = THEME.ACCENT
+    Page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Page.Visible = false
+    Page.ZIndex = 52
+    Page.Parent = Content
+
+    local PageList = Instance.new("UIListLayout")
+    PageList.Padding = UDim.new(0, 6)
+    PageList.SortOrder = Enum.SortOrder.LayoutOrder
+    PageList.Parent = Page
+
+    Tabs[name] = {Frame = Page, Button = Btn}
+
+    Btn.MouseButton1Click:Connect(function()
+        switchTab(name)
+        for n, t in pairs(Tabs) do
+            if t.Button then
+                if n == name then
+                    pcall(function()
+                        TweenService:Create(t.Button, TweenInfo.new(0.2), {
+                            BackgroundTransparency = 0,
+                            BackgroundColor3 = THEME.ACCENT,
+                            TextColor3 = THEME.TEXT
+                        }):Play()
+                    end)
+                else
+                    pcall(function()
+                        TweenService:Create(t.Button, TweenInfo.new(0.2), {
+                            BackgroundTransparency = 1,
+                            TextColor3 = THEME.SUBTEXT
+                        }):Play()
+                    end)
+                end
+            end
+        end
+    end)
+
+    return Tabs[name]
+end
+
+local function createSection(parent, text)
+    local Sec = Instance.new("TextLabel")
+    Sec.Size = UDim2.new(1, 0, 0, 16)
+    Sec.BackgroundTransparency = 1
+    Sec.Text = string.upper(text)
+    Sec.TextColor3 = THEME.ACCENT2
+    Sec.Font = Enum.Font.GothamBold
+    Sec.TextSize = 10
+    Sec.TextXAlignment = Enum.TextXAlignment.Left
+    Sec.ZIndex = 53
+    Sec.Parent = parent
+    return Sec
+end
+
+local function createButton(parent, text, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 0, 32)
+    Btn.BackgroundColor3 = THEME.BG
+    Btn.BorderSizePixel = 0
+    Btn.Text = "  " .. text
+    Btn.TextColor3 = THEME.TEXT
+    Btn.Font = Enum.Font.GothamSemibold
+    Btn.TextSize = 12
+    Btn.TextXAlignment = Enum.TextXAlignment.Left
+    Btn.AutoButtonColor = false
+    Btn.ZIndex = 53
+    Btn.Parent = parent
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = Btn
+
+    local BtnStroke = Instance.new("UIStroke")
+    BtnStroke.Color = THEME.STROKE
+    BtnStroke.Thickness = 1
+    BtnStroke.Parent = Btn
+
+    Btn.MouseButton1Click:Connect(function()
+        setStatus("exec: " .. text)
+        if callback then
+            local ok, err = pcall(callback)
+            if not ok then setStatus("error: " .. tostring(err)) end
+        end
+    end)
+    return Btn
+end
+
+local function createToggle(parent, text, default, callback)
+    local state = default or false
+
+    local Holder = Instance.new("Frame")
+    Holder.Size = UDim2.new(1, 0, 0, 32)
+    Holder.BackgroundColor3 = THEME.BG
+    Holder.BorderSizePixel = 0
+    Holder.ZIndex = 53
+    Holder.Parent = parent
+
+    local HolderCorner = Instance.new("UICorner")
+    HolderCorner.CornerRadius = UDim.new(0, 6)
+    HolderCorner.Parent = Holder
+
+    local HolderStroke = Instance.new("UIStroke")
+    HolderStroke.Color = THEME.STROKE
+    HolderStroke.Thickness = 1
+    HolderStroke.Parent = Holder
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -50, 1, 0)
+    Label.Position = UDim2.new(0, 10, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = THEME.TEXT
+    Label.Font = Enum.Font.GothamSemibold
+    Label.TextSize = 12
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.ZIndex = 54
+    Label.Parent = Holder
+
+    local Dot = Instance.new("Frame")
+    Dot.Size = UDim2.new(0, 32, 0, 16)
+    Dot.Position = UDim2.new(1, -40, 0.5, 0)
+    Dot.AnchorPoint = Vector2.new(0, 0.5)
+    Dot.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+    Dot.BorderSizePixel = 0
+    Dot.ZIndex = 54
+    Dot.Parent = Holder
+
+    local DotCorner = Instance.new("UICorner")
+    DotCorner.CornerRadius = UDim.new(1, 0)
+    DotCorner.Parent = Dot
+
+    local Knob = Instance.new("Frame")
+    Knob.Size = UDim2.new(0, 12, 0, 12)
+    Knob.Position = UDim2.new(0, 2, 0.5, 0)
+    Knob.AnchorPoint = Vector2.new(0, 0.5)
+    Knob.BackgroundColor3 = THEME.SUBTEXT
+    Knob.BorderSizePixel = 0
+    Knob.ZIndex = 55
+    Knob.Parent = Dot
+
+    local KnobCorner = Instance.new("UICorner")
+    KnobCorner.CornerRadius = UDim.new(1, 0)
+    KnobCorner.Parent = Knob
+
+    local function apply()
+        pcall(function()
+            if state then
+                TweenService:Create(Dot, TweenInfo.new(0.2), {BackgroundColor3 = THEME.ACCENT}):Play()
+                TweenService:Create(Knob, TweenInfo.new(0.2), {Position = UDim2.new(1, -14, 0.5, 0), BackgroundColor3 = THEME.TEXT}):Play()
+            else
+                TweenService:Create(Dot, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 40, 48)}):Play()
+                TweenService:Create(Knob, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0.5, 0), BackgroundColor3 = THEME.SUBTEXT}):Play()
+            end
+        end)
+    end
+
+    apply()
+
+    local Click = Instance.new("TextButton")
+    Click.Size = UDim2.fromScale(1, 1)
+    Click.BackgroundTransparency = 1
+    Click.Text = ""
+    Click.ZIndex = 56
+    Click.Parent = Holder
+
+    Click.MouseButton1Click:Connect(function()
+        state = not state
+        apply()
+        if callback then
+            local ok, err = pcall(callback, state)
+            if not ok then setStatus("error: " .. tostring(err)) end
+        end
+    end)
+
+    return Holder
+end
+
+-- ========== ВКЛАДКИ ==========
+createTab("Farm", "◆")
+createTab("Upgrade", "✦")
+createTab("ESP", "◉")
+createTab("Misc", "◇")
+
+-- FARM TAB
+do
+    local t = Tabs["Farm"].Frame
+    createSection(t, "auto collect")
+    createToggle(t, "Auto Collect Brainrots", false, function(s)
+        Collect_State.Enabled = s
+        setStatus(s and "collect: ON" or "collect: OFF")
+    end)
+
+    createSection(t, "auto sell")
+    createToggle(t, "Auto Sell All", false, function(s)
+        Sell_State.Enabled = s
+    end)
+    createButton(t, "Sell All Now", function()
+        callRF(Remotes.SellAll)
+    end)
+end
+
+-- UPGRADE TAB
+do
+    local t = Tabs["Upgrade"].Frame
+    createSection(t, "upgrades")
+    createToggle(t, "Auto Upgrade Base", false, function(s) Upgrade_State.Base = s end)
+    createToggle(t, "Auto Upgrade Speed", false, function(s) Upgrade_State.Speed = s end)
+    createToggle(t, "Auto Upgrade Carry", false, function(s) Upgrade_State.Carry = s end)
+    createToggle(t, "Auto Upgrade Brainrot", false, function(s) Upgrade_State.Brainrot = s end)
+
+    createSection(t, "rebirth")
+    createToggle(t, "Auto Rebirth", false, function(s)
+        Rebirth_State.Enabled = s
+    end)
+    createButton(t, "Rebirth Now", function() callRF(Remotes.Rebirth) end)
+
+    createSection(t, "free")
+    createButton(t, "Take Free Epic", function() callRF(Remotes.TakeFreeEpic) end)
+end
+
+-- ESP TAB
+do
+    local t = Tabs["ESP"].Frame
+    createSection(t, "brainrot esp")
+    createToggle(t, "ESP Brainrots", false, function(s)
+        setESP(s)
+        setStatus(s and "esp: ON" or "esp: OFF")
+    end)
+end
+
+-- MISC TAB
+do
+    local t = Tabs["Misc"].Frame
+    createSection(t, "protection")
+    createToggle(t, "Anti-Death (Event)", false, function(s)
+        setAntiDeath(s)
+    end)
+
+    createSection(t, "teleport")
+    createButton(t, "Teleport Safe Zone", function()
+        local ok = teleportToSafeZone()
+        setStatus(ok and "teleported" or "skipped/no zone")
+    end)
+
+    createSection(t, "utility")
+    createButton(t, "Copy Job ID", function()
+        if type(setclipboard) == "function" then
+            pcall(setclipboard, game.JobId)
+            setStatus("job id copied")
+        end
+    end)
+    createButton(t, "Refresh ESP", function()
+        clearAllESP()
+        task.wait(0.1)
+        refreshAllESP()
+        setStatus("esp refreshed")
+    end)
+end
+
+switchTab("Farm")
+pcall(function()
+    Tabs["Farm"].Button.BackgroundTransparency = 0
+    Tabs["Farm"].Button.BackgroundColor3 = THEME.ACCENT
+    Tabs["Farm"].Button.TextColor3 = THEME.TEXT
+end)
+
+-- FAB
+local Fab = Instance.new("TextButton")
+Fab.Size = UDim2.new(0, 48, 0, 48)
+Fab.Position = UDim2.new(0, 15, 0.5, -24)
+Fab.BackgroundColor3 = THEME.ACCENT
+Fab.BorderSizePixel = 0
+Fab.Text = "F"
+Fab.TextColor3 = THEME.TEXT
+Fab.Font = Enum.Font.GothamBlack
+Fab.TextSize = 20
+Fab.AutoButtonColor = false
+Fab.Active = true
+Fab.ZIndex = 200
+Fab.Parent = ScreenGui
+
+local FabCorner = Instance.new("UICorner")
+FabCorner.CornerRadius = UDim.new(1, 0)
+FabCorner.Parent = Fab
+
+do
+    local dragging, dragStart, startPos
+    Fab.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; dragStart = input.Position; startPos = Fab.Position
+        end
+    end)
+    Fab.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            local delta = input.Position - dragStart
+            Fab.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+Fab.MouseButton1Click:Connect(function()
+    Main.Visible = not Main.Visible
+end)
+
+task.spawn(function()
+    task.wait(1)
+    Main.Visible = true
+    setStatus("etfb v1.2 loaded.")
+end)
+
+print("[ETFB Fox] v1.2 loaded")
